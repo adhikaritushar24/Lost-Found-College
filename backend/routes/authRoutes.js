@@ -5,6 +5,8 @@ const {
   verifyOTPController,
   resendOTP,
   loginUser,
+  forgotPassword,
+  resetPassword,
   getProfile,
   updateProfile,
 } = require("../controllers/authController");
@@ -14,7 +16,8 @@ router.post("/register", registerUser);
 router.post("/verify-otp", verifyOTPController);
 router.post("/resend-otp", resendOTP);
 router.post("/login", loginUser);
-
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 router.get("/profile", protect, getProfile);
 router.put("/profile", protect, updateProfile);
 

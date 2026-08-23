@@ -26,6 +26,16 @@ const login = async (email, password) => {
   return res.data;
 };
 
+const forgotPassword = async (email) => {
+  const res = await api.post("/auth/forgot-password", { email });
+  return res.data;
+};
+
+const resetPassword = async (email, otp, newPassword) => {
+  const res = await api.post("/auth/reset-password", { email, otp, newPassword });
+  return res.data;
+};
+
 const logout = () => {
   localStorage.removeItem("user");
 };
@@ -49,6 +59,8 @@ export default {
   verifyOTP,
   resendOTP,
   login,
+  forgotPassword,
+  resetPassword,
   logout,
   getProfile,
   updateProfile,

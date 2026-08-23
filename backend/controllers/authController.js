@@ -19,7 +19,6 @@ const registerUser = async (req, res, next) => {
       return res.status(400).json({ message: "User already exists. Please login." });
     }
 
-    // If user exists but never verified, update their details and resend OTP
     let user;
     if (existingUser && !existingUser.isVerified) {
       existingUser.name = name;
@@ -82,7 +81,7 @@ const verifyOTPController = async (req, res, next) => {
   }
 };
 
-// @desc    Resend OTP (register or login)
+// @desc    Resend OTP (register, login, or reset)
 // @route   POST /api/auth/resend-otp
 // @access  Public
 const resendOTP = async (req, res, next) => {
@@ -124,7 +123,6 @@ const loginUser = async (req, res, next) => {
     }
 
     if (!user.isVerified) {
-      // Not verified yet — send a fresh OTP so they can complete verification
       await createAndSendOTP(email, "register");
       return res.status(403).json({
         message: "Account not verified. A new OTP has been sent to your email.",
@@ -140,6 +138,71 @@ const loginUser = async (req, res, next) => {
       avatar: user.avatar,
       token: generateToken(user._id),
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Request a password reset OTP
+// @route   POST /api/auth/forgot-password
+// @access  Public
+const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email });
+
+    // Don't reveal whether the account exists — always respond the same way
+    if (user) {
+      await createAndSendOTP(email, "reset");
+    }
+
+    res.status(200).json({
+      message: "If an account exists for this email, a reset code has been sent.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify reset OTP and set a new password
+// @route   POST /api/auth/reset-password
+// @access  Public
+const resetPassword = async (req, res, next) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Email, OTP and new password are required" });
+    }
+
+    if (newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters" });
+    }
+
+    const result = await verifyOTP(email, otp, "reset");
+
+    if (!result.valid) {
+      return res.status(400).json({ message: result.message });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.password = newPassword; // pre-save hook hashes it
+    await user.save();
+
+    res.status(200).json({ message: "Password reset successfully. Please login." });
   } catch (error) {
     next(error);
   }
@@ -203,6 +266,8 @@ module.exports = {
   verifyOTPController,
   resendOTP,
   loginUser,
+  forgotPassword,
+  resetPassword,
   getProfile,
   updateProfile,
 };

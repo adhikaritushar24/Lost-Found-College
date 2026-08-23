@@ -1,20 +1,21 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import authService from "../../services/authService";
-import { isValidEmail, isValidPassword } from "../../utils/validators";
 
-const Register = () => {
+const ResetPassword = () => {
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    rollNumber: "",
-    phone: "",
-  });
+  const location = useLocation();
+  const emailFromState = location.state?.email || "";
+
+  const [email, setEmail] = useState(emailFromState);
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [exitDir, setExitDir] = useState(null);
 
@@ -28,34 +29,46 @@ const Register = () => {
     setTimeout(() => navigate(path, options), 280);
   };
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
 
-    if (!isValidEmail(form.email)) {
-      return setError("Please enter a valid email address");
-    }
-    if (!isValidPassword(form.password)) {
+    if (newPassword.length < 6) {
       return setError("Password must be at least 6 characters");
+    }
+    if (newPassword !== confirmPassword) {
+      return setError("Passwords do not match");
     }
 
     try {
       setLoading(true);
-      await authService.register(form);
-      goTo("/verify-otp", "left", { state: { email: form.email } });
+      await authService.resetPassword(email, otp, newPassword);
+      setSuccess("Password reset successfully. Redirecting to login...");
+      setTimeout(() => goTo("/login", "right"), 1200);
     } catch (err) {
-      setError(err.response?.data?.message || "Registration failed");
+      setError(err.response?.data?.message || "Failed to reset password");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleResend = async () => {
+    setError("");
+    setSuccess("");
+    try {
+      setResending(true);
+      await authService.resendOTP(email, "reset");
+      setSuccess("A new code has been sent to your email");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to resend code");
+    } finally {
+      setResending(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-fuchsia-50 px-4 py-10 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-fuchsia-50 px-4 relative overflow-hidden">
       <div className="absolute -top-24 -left-24 w-72 h-72 bg-purple-200/40 rounded-full blur-3xl" />
       <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-fuchsia-200/40 rounded-full blur-3xl" />
 
@@ -72,16 +85,32 @@ const Register = () => {
       >
         <div className="flex justify-center mb-6">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 via-purple-600 to-fuchsia-600 flex items-center justify-center shadow-lg shadow-purple-500/25">
-            <span className="text-white text-2xl font-bold">L</span>
+            <svg
+              className="w-6 h-6 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.8}
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              />
+            </svg>
           </div>
         </div>
 
         <div className="bg-white/90 backdrop-blur-sm shadow-xl shadow-purple-900/5 rounded-2xl p-8 border border-purple-100/60">
           <h1 className="text-2xl font-bold text-gray-900 mb-1 text-center">
-            Create account
+            Reset password
           </h1>
           <p className="text-gray-500 mb-6 text-sm text-center">
-            Register with your college email to get started
+            Enter the code sent to{" "}
+            <span className="font-medium text-gray-700">
+              {email || "your email"}
+            </span>{" "}
+            and choose a new password
           </p>
 
           {error && (
@@ -89,49 +118,54 @@ const Register = () => {
               {error}
             </div>
           )}
+          {success && (
+            <div className="bg-emerald-50 text-emerald-600 text-sm px-3.5 py-2.5 rounded-lg mb-4 border border-emerald-100">
+              {success}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {!emailFromState && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-colors"
+                />
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Full name
+                6-digit code
               </label>
               <input
                 type="text"
-                name="name"
-                placeholder="Your full name"
-                value={form.name}
-                onChange={handleChange}
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="123456"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                 required
-                className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-colors"
+                className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm tracking-[0.3em] text-center font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-colors"
               />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                College email
-              </label>
-              <input
-                type="email"
-                name="email"
-                placeholder="you@college.edu"
-                value={form.email}
-                onChange={handleChange}
-                required
-                className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Password
+                New password
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
-                  name="password"
                   placeholder="At least 6 characters"
-                  value={form.password}
-                  onChange={handleChange}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
                   required
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-colors"
                 />
@@ -182,33 +216,18 @@ const Register = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Roll number
-                </label>
-                <input
-                  type="text"
-                  name="rollNumber"
-                  placeholder="Optional"
-                  value={form.rollNumber}
-                  onChange={handleChange}
-                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Phone
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  placeholder="Optional"
-                  value={form.phone}
-                  onChange={handleChange}
-                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-colors"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                Confirm new password
+              </label>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Re-enter new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-colors"
+              />
             </div>
 
             <button
@@ -216,24 +235,30 @@ const Register = () => {
               disabled={loading}
               className="w-full bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white rounded-xl py-2.5 text-sm font-medium hover:from-purple-700 hover:to-fuchsia-700 transition-all shadow-sm shadow-purple-500/25 disabled:opacity-60 active:scale-[0.99]"
             >
-              {loading ? "Creating account..." : "Create account"}
+              {loading ? "Resetting..." : "Reset password"}
             </button>
           </form>
 
-          <p className="text-sm text-gray-500 mt-6 text-center">
-            Already have an account?{" "}
+          <div className="flex items-center justify-between mt-5 text-sm">
+            <button
+              onClick={handleResend}
+              disabled={resending || !email}
+              className="text-purple-600 font-medium hover:text-purple-700 disabled:opacity-50"
+            >
+              {resending ? "Resending..." : "Resend code"}
+            </button>
             <button
               type="button"
               onClick={() => goTo("/login", "right")}
-              className="text-purple-600 font-medium hover:text-purple-700"
+              className="text-gray-500 hover:text-gray-700"
             >
-              Login
+              Back to login
             </button>
-          </p>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-export default Register;
+export default ResetPassword;
