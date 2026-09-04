@@ -27,9 +27,11 @@ const itemService = {
   },
 
   createItem: async (formData) => {
-    const res = await api.post("/items", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    // Don't set Content-Type manually — for FormData the browser needs to
+    // add its own multipart boundary, which it won't do if we override the
+    // header ourselves. Setting it explicitly was causing multer on the
+    // backend to fail to parse the image, so uploaded photos weren't saved.
+    const res = await api.post("/items", formData);
     return res.data;
   },
 

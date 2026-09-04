@@ -97,7 +97,7 @@ export default function MyItems() {
                     <img
                       src={`${API}${item.image}`}
                       alt={item.title}
-                      className="w-full h-36 object-cover bg-gray-100"
+                      className="w-full h-36 object-contain bg-gray-100"
                     />
                   ) : (
                     <div className="w-full h-36 bg-gray-50 flex items-center justify-center text-3xl">

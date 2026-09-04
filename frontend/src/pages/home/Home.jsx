@@ -618,7 +618,7 @@ export default function Home() {
                   <img
                     src={`${API}${item.image}`}
                     alt={item.title}
-                    className="w-full h-36 object-cover bg-gray-100"
+                    className="w-full h-36 object-contain bg-gray-100"
                   />
                 ) : (
                   <div className="w-full h-36 bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center text-3xl">
@@ -666,7 +666,7 @@ export default function Home() {
               <img
                 src={`${API}${selectedItem.image}`}
                 alt={selectedItem.title}
-                className="w-full h-56 object-cover bg-gray-100"
+                className="w-full h-56 object-contain bg-gray-100"
               />
             ) : (
               <div className="w-full h-40 bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center text-5xl">
@@ -725,20 +725,45 @@ export default function Home() {
                 selectedItem.status !== "claimed" && (
                   <div className="border-t border-purple-100 pt-4 mt-4">
                     {claimSuccess ? (
-                      <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg px-3.5 py-2.5">
-                        <span>✓</span>
-                        Claim request sent! The reporter will be notified.
+                      <div className="text-sm bg-emerald-50 border border-emerald-100 rounded-lg px-3.5 py-3 space-y-2">
+                        <div className="flex items-center gap-2 font-medium text-emerald-700">
+                          <span>✓</span>
+                          Request sent!
+                        </div>
+                        {selectedItem.reportedBy?.email ? (
+                          <div>
+                            <p className="text-xs text-emerald-600/80">
+                              Contact the reporter to arrange pickup:
+                            </p>
+                            <a
+                              href={`mailto:${selectedItem.reportedBy.email}`}
+                              className="inline-flex items-center gap-1.5 mt-1 text-sm font-medium text-emerald-700 underline underline-offset-2 hover:text-emerald-800"
+                            >
+                              ✉️ {selectedItem.reportedBy.email}
+                            </a>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-emerald-600/80">
+                            The reporter will be notified of your request.
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Is this yours?
+                          {selectedItem.status === "lost"
+                            ? "Did you find this?"
+                            : "Is this yours?"}
                         </label>
                         <textarea
                           value={claimMessage}
                           onChange={(e) => setClaimMessage(e.target.value)}
                           rows={2}
-                          placeholder="Add a note to help verify it's yours (optional)"
+                          placeholder={
+                            selectedItem.status === "lost"
+                              ? "Add a note with where/when you found it (optional)"
+                              : "Add a note to help verify it's yours (optional)"
+                          }
                           className="w-full rounded-lg border border-purple-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/25 focus:border-purple-400 resize-none mb-2"
                         />
                         <button
@@ -748,7 +773,9 @@ export default function Home() {
                         >
                           {claiming
                             ? "Submitting..."
-                            : "This is mine — claim it"}
+                            : selectedItem.status === "lost"
+                              ? "I found this — notify owner"
+                              : "This is mine — claim it"}
                         </button>
                       </>
                     )}

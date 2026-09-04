@@ -1,13 +1,19 @@
 const nodemailer = require("nodemailer");
 
-// Reusable transporter (Gmail example — swap for college SMTP if available)
+// Brevo SMTP relay — free tier: 300 emails/day, sends to ANY recipient
+// (unlike Resend's free tier which needs a verified domain for that)
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp-relay.brevo.com",
+  port: 587,
+  secure: false,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // use an App Password, not your real Gmail password
+    user: process.env.BREVO_SMTP_USER, // your Brevo login email
+    pass: process.env.BREVO_SMTP_KEY,  // your Brevo SMTP key (not your Brevo account password)
   },
 });
+
+// Must be the email address you verified as a Sender in Brevo
+const FROM_ADDRESS = `"Campus Lost & Found" <${process.env.BREVO_SENDER_EMAIL}>`;
 
 const sendOTPEmail = async (toEmail, otp, purpose = "register") => {
   const subjectMap = {
@@ -16,22 +22,28 @@ const sendOTPEmail = async (toEmail, otp, purpose = "register") => {
     reset: "Reset your password - Lost & Found",
   };
 
-  const mailOptions = {
-    from: `"Campus Lost & Found" <${process.env.EMAIL_USER}>`,
-    to: toEmail,
-    subject: subjectMap[purpose] || "Your OTP Code",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto;">
-        <h2 style="color: #1e3a8a;">Campus Lost & Found</h2>
-        <p>Your OTP code is:</p>
-        <h1 style="letter-spacing: 4px; color: #1e3a8a;">${otp}</h1>
-        <p>This code will expire in 5 minutes. Do not share it with anyone.</p>
-        <p style="color: #888; font-size: 12px;">If you didn't request this, you can ignore this email.</p>
-      </div>
-    `,
-  };
+  try {
+    const info = await transporter.sendMail({
+      from: FROM_ADDRESS,
+      to: toEmail,
+      subject: subjectMap[purpose] || "Your OTP Code",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto;">
+          <h2 style="color: #1e3a8a;">Campus Lost & Found</h2>
+          <p>Your OTP code is:</p>
+          <h1 style="letter-spacing: 4px; color: #1e3a8a;">${otp}</h1>
+          <p>This code will expire in 5 minutes. Do not share it with anyone.</p>
+          <p style="color: #888; font-size: 12px;">If you didn't request this, you can ignore this email.</p>
+        </div>
+      `,
+    });
 
-  await transporter.sendMail(mailOptions);
+    console.log(`OTP email sent to ${toEmail} — messageId: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error("Brevo email error:", error);
+    throw new Error("Failed to send OTP email");
+  }
 };
 
 module.exports = { sendOTPEmail };

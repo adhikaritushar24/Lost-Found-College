@@ -1,8 +1,17 @@
-node_modules/
+# Environment files
 .env
-.env.local
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Build
 dist/
-uploads/
+build/
+
+# Logs
 *.log
-.DS_Store
-Thumbs.db
+
+# Uploaded files
+uploads/
