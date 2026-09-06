@@ -225,7 +225,7 @@ const getProfile = async (req, res, next) => {
   }
 };
 
-// @desc    Update logged-in user's profile
+// @desc    Update logged-in user's profile (including an optional avatar photo)
 // @route   PUT /api/auth/profile
 // @access  Private
 const updateProfile = async (req, res, next) => {
@@ -239,7 +239,14 @@ const updateProfile = async (req, res, next) => {
     user.name = req.body.name || user.name;
     user.phone = req.body.phone || user.phone;
     user.rollNumber = req.body.rollNumber || user.rollNumber;
-    user.avatar = req.body.avatar || user.avatar;
+
+    // If a new avatar file was uploaded, use it. Otherwise keep whatever
+    // was already there (avatar upload is optional).
+    if (req.file) {
+      user.avatar = `/uploads/${req.file.filename}`;
+    } else if (req.body.avatar) {
+      user.avatar = req.body.avatar;
+    }
 
     if (req.body.password) {
       user.password = req.body.password;

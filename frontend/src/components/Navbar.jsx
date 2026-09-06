@@ -45,6 +45,8 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   const [matches, setMatches] = useState([]);
+  const [claims, setClaims] = useState([]);
+  const [claimActionId, setClaimActionId] = useState(null); // claimId currently being approved/rejected
   const [bellOpen, setBellOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -56,52 +58,64 @@ export default function Navbar() {
   const bellRef = useRef(null);
   const profileRef = useRef(null);
 
-  useEffect(() => {
-    const loadMatches = async () => {
-      try {
-        const [myItems, foundItems] = await Promise.all([
-          itemService.getMyItems(),
-          itemService.getFoundItems(),
-        ]);
+  const loadMatches = async () => {
+    try {
+      const [myItems, foundItems] = await Promise.all([
+        itemService.getMyItems(),
+        itemService.getFoundItems(),
+      ]);
 
-        const myLostItems = myItems.filter((i) => i.status === "lost");
-        if (myLostItems.length === 0) {
-          setMatches([]);
-          return;
-        }
+      const myLostItems = myItems.filter((i) => i.status === "lost");
+      if (myLostItems.length === 0) {
+        setMatches([]);
+        return;
+      }
 
-        const found = [];
-        const seen = new Set();
+      const found = [];
+      const seen = new Set();
 
-        for (const foundItem of foundItems) {
-          for (const lostItem of myLostItems) {
-            const sameCategory =
-              (foundItem.category || "Other") ===
-              (lostItem.category || "Other");
-            const sameTitleWords = titlesOverlap(
-              foundItem.title,
-              lostItem.title,
-            );
+      for (const foundItem of foundItems) {
+        for (const lostItem of myLostItems) {
+          const sameCategory =
+            (foundItem.category || "Other") === (lostItem.category || "Other");
+          const sameTitleWords = titlesOverlap(foundItem.title, lostItem.title);
 
-            if ((sameCategory && sameTitleWords) || sameTitleWords) {
-              if (!seen.has(foundItem._id)) {
-                seen.add(foundItem._id);
-                found.push({ ...foundItem, matchedLostTitle: lostItem.title });
-              }
-              break;
+          if ((sameCategory && sameTitleWords) || sameTitleWords) {
+            if (!seen.has(foundItem._id)) {
+              seen.add(foundItem._id);
+              found.push({ ...foundItem, matchedLostTitle: lostItem.title });
             }
+            break;
           }
         }
-
-        found.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        setMatches(found.slice(0, 8));
-      } catch (err) {
-        console.error("Failed to load notifications", err);
       }
-    };
 
+      found.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      setMatches(found.slice(0, 8));
+    } catch (err) {
+      console.error("Failed to load notifications", err);
+    }
+  };
+
+  // Claims made by other people on items I reported — pending ones need my
+  // action, approved ones show the claimer's contact email
+  const loadClaims = async () => {
+    try {
+      const data = await itemService.getMyClaims();
+      const relevant = data.filter((c) => c.status !== "rejected").slice(0, 8);
+      setClaims(relevant);
+    } catch (err) {
+      console.error("Failed to load claims", err);
+    }
+  };
+
+  useEffect(() => {
     loadMatches();
-    const interval = setInterval(loadMatches, 30000);
+    loadClaims();
+    const interval = setInterval(() => {
+      loadMatches();
+      loadClaims();
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -122,9 +136,15 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const unreadCount = matches.filter(
+  const pendingClaims = claims.filter((c) => c.status === "pending");
+
+  const unreadMatchCount = matches.filter(
     (i) => new Date(i.createdAt).getTime() > Number(lastSeen),
   ).length;
+
+  // Pending claims always count toward the badge since they need action,
+  // regardless of whether the bell has been opened before
+  const unreadCount = unreadMatchCount + pendingClaims.length;
 
   const toggleBell = () => {
     const next = !bellOpen;
@@ -145,6 +165,30 @@ export default function Navbar() {
   const handleLogout = () => {
     logout?.();
     navigate("/login");
+  };
+
+  const handleApproveClaim = async (claimId) => {
+    setClaimActionId(claimId);
+    try {
+      await itemService.approveClaim(claimId);
+      await loadClaims();
+    } catch (err) {
+      console.error("Failed to approve claim", err);
+    } finally {
+      setClaimActionId(null);
+    }
+  };
+
+  const handleRejectClaim = async (claimId) => {
+    setClaimActionId(claimId);
+    try {
+      await itemService.rejectClaim(claimId);
+      await loadClaims();
+    } catch (err) {
+      console.error("Failed to reject claim", err);
+    } finally {
+      setClaimActionId(null);
+    }
   };
 
   const timeAgo = (dateStr) => {
@@ -253,30 +297,149 @@ export default function Navbar() {
               </button>
 
               {bellOpen && (
-                <div className="absolute right-0 mt-3 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl shadow-purple-900/10 border border-purple-100/80 overflow-hidden animate-[fadeIn_0.15s_ease-out] origin-top-right">
-                  <div className="px-4 py-3.5 bg-gradient-to-r from-purple-50 to-fuchsia-50/50 border-b border-purple-100/70 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900">
-                        Possible matches
-                      </h3>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        Found items that match something you lost
-                      </p>
-                    </div>
-                    {matches.length > 0 && (
-                      <span className="text-[10px] font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full shrink-0">
-                        {matches.length}
-                      </span>
+                <div className="fixed left-4 right-4 top-[68px] sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-80 bg-white rounded-2xl shadow-2xl shadow-purple-900/10 border border-purple-100/80 overflow-hidden animate-[fadeIn_0.15s_ease-out] origin-top-right">
+                  <div className="max-h-96 overflow-y-auto">
+                    {/* Claim requests section */}
+                    {claims.length > 0 && (
+                      <div>
+                        <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-teal-50/50 border-b border-emerald-100/70 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-sm font-semibold text-gray-900">
+                              Claim requests
+                            </h3>
+                            <p className="text-[11px] text-gray-400 mt-0.5">
+                              People who said an item is theirs
+                            </p>
+                          </div>
+                          {pendingClaims.length > 0 && (
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full shrink-0">
+                              {pendingClaims.length}
+                            </span>
+                          )}
+                        </div>
+                        {claims.map((claim) => (
+                          <div
+                            key={claim._id}
+                            className="px-4 py-3 border-b border-gray-50 last:border-0"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="relative shrink-0">
+                                {claim.item?.image ? (
+                                  <img
+                                    src={`${API}${claim.item.image}`}
+                                    alt={claim.item.title}
+                                    className="w-10 h-10 rounded-xl object-cover bg-gray-100 ring-1 ring-black/5"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-400">
+                                    <span className="text-white text-xs font-bold">
+                                      {claim.item?.title?.[0]?.toUpperCase() ||
+                                        "?"}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full overflow-hidden bg-gradient-to-br from-purple-400 to-fuchsia-500 flex items-center justify-center text-white text-[9px] font-bold ring-2 ring-white">
+                                  {claim.claimedBy?.avatar ? (
+                                    <img
+                                      src={`${API}${claim.claimedBy.avatar}`}
+                                      alt={claim.claimedBy?.name || "User"}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    claim.claimedBy?.name?.[0]?.toUpperCase() ||
+                                    "?"
+                                  )}
+                                </div>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm text-gray-900 truncate">
+                                  <span className="font-medium">
+                                    {claim.claimedBy?.name || "Someone"}
+                                  </span>{" "}
+                                  says this is theirs:{" "}
+                                  <span className="text-gray-600">
+                                    {claim.item?.title}
+                                  </span>
+                                </p>
+                                {claim.message && (
+                                  <p className="text-xs text-gray-400 mt-1 line-clamp-2">
+                                    "{claim.message}"
+                                  </p>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-gray-400 whitespace-nowrap mt-0.5 shrink-0">
+                                {timeAgo(claim.createdAt)}
+                              </span>
+                            </div>
+
+                            {claim.status === "pending" ? (
+                              <div className="flex gap-2 mt-2.5 ml-[52px]">
+                                <button
+                                  onClick={() => handleApproveClaim(claim._id)}
+                                  disabled={claimActionId === claim._id}
+                                  className="flex-1 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-1.5 transition-colors disabled:opacity-50"
+                                >
+                                  {claimActionId === claim._id
+                                    ? "Approving..."
+                                    : "Accept"}
+                                </button>
+                                <button
+                                  onClick={() => handleRejectClaim(claim._id)}
+                                  disabled={claimActionId === claim._id}
+                                  className="text-xs font-medium text-gray-500 hover:bg-gray-100 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
+                                >
+                                  Decline
+                                </button>
+                              </div>
+                            ) : (
+                              claim.status === "approved" && (
+                                <div className="mt-2.5 ml-[52px] text-xs bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+                                  <p className="text-emerald-700 font-medium mb-0.5">
+                                    ✓ Approved — contact to arrange pickup
+                                  </p>
+                                  {claim.claimedBy?.email && (
+                                    <a
+                                      href={`mailto:${claim.claimedBy.email}`}
+                                      className="text-emerald-700 underline underline-offset-2 hover:text-emerald-800"
+                                    >
+                                      ✉️ {claim.claimedBy.email}
+                                    </a>
+                                  )}
+                                </div>
+                              )
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     )}
-                  </div>
-                  <div className="max-h-80 overflow-y-auto">
-                    {matches.length === 0 ? (
+
+                    {/* Possible matches section */}
+                    <div className="px-4 py-3.5 bg-gradient-to-r from-purple-50 to-fuchsia-50/50 border-b border-purple-100/70 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">
+                          Possible matches
+                        </h3>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          Found items that match something you lost
+                        </p>
+                      </div>
+                      {matches.length > 0 && (
+                        <span className="text-[10px] font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full shrink-0">
+                          {matches.length}
+                        </span>
+                      )}
+                    </div>
+                    {matches.length === 0 && claims.length === 0 ? (
                       <div className="text-center py-10 px-6">
                         <p className="text-2xl mb-1.5">🔔</p>
                         <p className="text-sm text-gray-400">
                           No matches yet — you'll be notified here if someone
                           finds an item like yours.
                         </p>
+                      </div>
+                    ) : matches.length === 0 ? (
+                      <div className="text-center py-6 px-6">
+                        <p className="text-xs text-gray-400">No matches yet.</p>
                       </div>
                     ) : (
                       matches.map((item) => (
@@ -333,8 +496,16 @@ export default function Navbar() {
                     : "hover:bg-purple-50/70"
                 }`}
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 via-purple-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold shadow-sm ring-2 ring-white">
-                  {initial}
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-purple-400 via-purple-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold shadow-sm ring-2 ring-white">
+                  {user?.avatar ? (
+                    <img
+                      src={`${API}${user.avatar}`}
+                      alt={user?.name || "Profile"}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    initial
+                  )}
                 </div>
                 <svg
                   className={`w-3.5 h-3.5 text-purple-400 transition-transform ${
@@ -359,8 +530,16 @@ export default function Navbar() {
                     <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
                     <div className="absolute -bottom-8 -left-4 w-20 h-20 rounded-full bg-white/10" />
                     <div className="relative flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-white text-lg font-bold ring-2 ring-white/40 backdrop-blur-sm">
-                        {initial}
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-white/20 flex items-center justify-center text-white text-lg font-bold ring-2 ring-white/40 backdrop-blur-sm">
+                        {user?.avatar ? (
+                          <img
+                            src={`${API}${user.avatar}`}
+                            alt={user?.name || "Profile"}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          initial
+                        )}
                       </div>
                       <div className="min-w-0">
                         <p className="text-white text-[15px] font-semibold truncate">

@@ -40,6 +40,21 @@ const SORT_OPTIONS = [
 const isNew = (dateStr) =>
   Date.now() - new Date(dateStr).getTime() < 24 * 60 * 60 * 1000;
 
+const timeAgo = (dateStr) => {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+};
+
 // Reusable purple-themed dropdown to replace the plain native <select>
 function Dropdown({ value, options, onChange, renderLabel, icon }) {
   const [open, setOpen] = useState(false);
@@ -310,27 +325,27 @@ export default function Home() {
           </div>
 
           {/* Stat cards */}
-          <div className="grid grid-cols-3 gap-3 mt-6">
+          <div className="grid grid-cols-3 gap-3 mt-7">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative overflow-hidden bg-white border rounded-2xl px-4 py-4 text-left transition-all ${
+                className={`relative overflow-hidden bg-white border rounded-2xl px-4 py-4 sm:py-5 text-left transition-all duration-200 ${
                   activeTab === tab.key
-                    ? "border-purple-300 ring-2 ring-purple-200 shadow-md shadow-purple-100"
-                    : "border-purple-100 hover:border-purple-300 hover:bg-purple-50/40"
+                    ? "border-purple-300 ring-2 ring-purple-200 shadow-lg shadow-purple-200/50 -translate-y-0.5"
+                    : "border-purple-100 shadow-sm shadow-purple-100/30 hover:border-purple-300 hover:bg-purple-50/40 hover:-translate-y-0.5"
                 }`}
               >
                 {activeTab === tab.key && (
                   <span className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-fuchsia-500" />
                 )}
-                <div className="flex items-center gap-1.5 mb-1.5">
+                <div className="flex items-center gap-1.5 mb-2">
                   <span className={`w-2 h-2 rounded-full ${tab.dot}`} />
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <span className="text-[11px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     {tab.label}
                   </span>
                 </div>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 tabular-nums">
                   {counts[tab.key]}
                 </p>
               </button>
@@ -577,13 +592,13 @@ export default function Home() {
 
         {/* Item Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[...Array(6)].map((_, i) => (
               <div
                 key={i}
-                className="bg-white border border-purple-100 rounded-2xl overflow-hidden animate-pulse"
+                className="bg-white border border-purple-100 rounded-2xl overflow-hidden animate-pulse shadow-sm shadow-purple-100/30"
               >
-                <div className="w-full h-36 bg-purple-100" />
+                <div className="w-full h-40 bg-purple-100" />
                 <div className="p-4 space-y-2">
                   <div className="h-3.5 bg-purple-50 rounded w-2/3" />
                   <div className="h-3 bg-purple-50 rounded w-1/2" />
@@ -602,42 +617,43 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {visibleItems.map((item) => (
               <button
                 key={item._id}
                 onClick={() => setSelectedItem(item)}
-                className="text-left bg-white border border-purple-100 rounded-2xl overflow-hidden hover:shadow-lg hover:shadow-purple-200/60 hover:border-purple-300 hover:-translate-y-0.5 transition-all relative"
+                className="group text-left bg-white border border-purple-100 rounded-2xl overflow-hidden shadow-sm shadow-purple-100/40 hover:shadow-xl hover:shadow-purple-200/50 hover:border-purple-300 hover:-translate-y-1 transition-all duration-200 flex flex-col"
               >
-                {isNew(item.createdAt) && (
-                  <span className="absolute top-2 left-2 z-10 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-sm">
-                    NEW
-                  </span>
-                )}
-                {item.image ? (
-                  <img
-                    src={`${API}${item.image}`}
-                    alt={item.title}
-                    className="w-full h-36 object-contain bg-gray-100"
-                  />
-                ) : (
-                  <div className="w-full h-36 bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center text-3xl">
-                    {CATEGORY_ICONS[item.category] || "📦"}
-                  </div>
-                )}
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm font-medium text-gray-900">
-                      {item.title}
-                    </h3>
-                    <span className="shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1">
-                      <span>{CATEGORY_ICONS[item.category] || "📦"}</span>
-                      {item.category || "Other"}
+                <div className="relative">
+                  {isNew(item.createdAt) && (
+                    <span className="absolute top-2.5 left-2.5 z-10 text-[10px] font-bold tracking-wide px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-sm">
+                      NEW
                     </span>
-                  </div>
+                  )}
+                  <span className="absolute top-2.5 right-2.5 z-10 text-[11px] font-medium px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-sm text-purple-700 border border-purple-100 shadow-sm flex items-center gap-1">
+                    <span>{CATEGORY_ICONS[item.category] || "📦"}</span>
+                    {item.category || "Other"}
+                  </span>
+                  {item.image ? (
+                    <img
+                      src={`${API}${item.image}`}
+                      alt={item.title}
+                      className="w-full h-40 object-contain bg-gradient-to-br from-purple-50/60 to-fuchsia-50/40 group-hover:scale-[1.03] transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-40 bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center text-4xl">
+                      {CATEGORY_ICONS[item.category] || "📦"}
+                    </div>
+                  )}
+                </div>
+                <div className="p-4 flex flex-col flex-1">
+                  <h3 className="text-sm font-semibold text-gray-900 leading-snug">
+                    {item.title}
+                  </h3>
                   {item.location && (
-                    <p className="text-xs text-gray-500 mt-1.5">
-                      📍 {item.location}
+                    <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1 truncate">
+                      <span className="text-purple-300">📍</span>
+                      {item.location}
                     </p>
                   )}
                   {item.description && (
@@ -645,6 +661,51 @@ export default function Home() {
                       {item.description}
                     </p>
                   )}
+
+                  {activeTab === "claimed" && item.claimedByUser?.name && (
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                      <div className="relative shrink-0">
+                        <div className="w-6 h-6 rounded-full overflow-hidden bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-white">
+                          {item.claimedByUser.avatar ? (
+                            <img
+                              src={`${API}${item.claimedByUser.avatar}`}
+                              alt={item.claimedByUser.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            item.claimedByUser.name[0].toUpperCase()
+                          )}
+                        </div>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-white flex items-center justify-center ring-1 ring-emerald-100">
+                          <svg
+                            className="w-2 h-2 text-emerald-500"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Claimed by{" "}
+                        <span className="text-gray-800 font-medium">
+                          {item.claimedByUser.name}
+                        </span>
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-auto pt-2.5 flex items-center justify-end">
+                    <span className="text-[11px] text-purple-300 font-medium">
+                      {timeAgo(item.createdAt)}
+                    </span>
+                  </div>
                 </div>
               </button>
             ))}
@@ -702,12 +763,32 @@ export default function Home() {
                 </p>
               )}
 
-              <div className="border-t border-purple-100 pt-4 text-xs text-gray-400 space-y-1">
+              <div className="border-t border-purple-100 pt-4">
                 {selectedItem.reportedBy?.name && (
-                  <p>Reported by {selectedItem.reportedBy.name}</p>
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-purple-400 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold shrink-0 ring-2 ring-purple-100">
+                      {selectedItem.reportedBy.avatar ? (
+                        <img
+                          src={`${API}${selectedItem.reportedBy.avatar}`}
+                          alt={selectedItem.reportedBy.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        selectedItem.reportedBy.name[0].toUpperCase()
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800">
+                        {selectedItem.reportedBy.name}
+                      </p>
+                      <p className="text-[11px] text-gray-400">
+                        Reported this item
+                      </p>
+                    </div>
+                  </div>
                 )}
                 {selectedItem.createdAt && (
-                  <p>
+                  <p className="text-xs text-gray-400 mt-2">
                     {new Date(selectedItem.createdAt).toLocaleDateString(
                       undefined,
                       {
@@ -719,6 +800,62 @@ export default function Home() {
                   </p>
                 )}
               </div>
+              {/* Already claimed — show who claimed it */}
+              {selectedItem.status === "claimed" &&
+                selectedItem.claimedByUser && (
+                  <div className="border-t border-purple-100 pt-4 mt-4">
+                    <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
+                      <div className="relative shrink-0">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-sm font-bold ring-2 ring-white shadow-sm">
+                          {selectedItem.claimedByUser.avatar ? (
+                            <img
+                              src={`${API}${selectedItem.claimedByUser.avatar}`}
+                              alt={selectedItem.claimedByUser.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            selectedItem.claimedByUser.name?.[0]?.toUpperCase() ||
+                            "?"
+                          )}
+                        </div>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center ring-1 ring-emerald-100">
+                          <svg
+                            className="w-2.5 h-2.5 text-emerald-500"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-gray-900">
+                          <span className="font-medium">
+                            {selectedItem.claimedByUser.name}
+                          </span>{" "}
+                          claimed this item
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Reach out to arrange pickup
+                        </p>
+                      </div>
+                      {selectedItem.claimedByUser.email && (
+                        <a
+                          href={`mailto:${selectedItem.claimedByUser.email}`}
+                          className="shrink-0 text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          Contact
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
 
               {/* Claim section — hidden for your own items and already-claimed items */}
               {selectedItem.reportedBy?._id !== user?._id &&
@@ -730,23 +867,11 @@ export default function Home() {
                           <span>✓</span>
                           Request sent!
                         </div>
-                        {selectedItem.reportedBy?.email ? (
-                          <div>
-                            <p className="text-xs text-emerald-600/80">
-                              Contact the reporter to arrange pickup:
-                            </p>
-                            <a
-                              href={`mailto:${selectedItem.reportedBy.email}`}
-                              className="inline-flex items-center gap-1.5 mt-1 text-sm font-medium text-emerald-700 underline underline-offset-2 hover:text-emerald-800"
-                            >
-                              ✉️ {selectedItem.reportedBy.email}
-                            </a>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-emerald-600/80">
-                            The reporter will be notified of your request.
-                          </p>
-                        )}
+                        <p className="text-xs text-emerald-600/80">
+                          The reporter will review your request. Once approved,
+                          it'll show up in the Claimed tab and you two can
+                          arrange pickup.
+                        </p>
                       </div>
                     ) : (
                       <>

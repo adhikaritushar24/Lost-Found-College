@@ -50,6 +50,17 @@ const updateProfile = async (data) => {
   return res.data;
 };
 
+// Upload/replace the user's avatar photo. Optional — a user can go without
+// one and the initials circle is shown as a fallback everywhere.
+const updateAvatar = async (file) => {
+  const formData = new FormData();
+  formData.append("avatar", file);
+  // Don't set Content-Type manually here — same reasoning as item image
+  // uploads: the browser needs to add its own multipart boundary.
+  const res = await api.put("/auth/profile", formData);
+  return res.data;
+};
+
 const getCurrentUser = () => {
   return JSON.parse(localStorage.getItem("user"));
 };
@@ -64,5 +75,6 @@ export default {
   logout,
   getProfile,
   updateProfile,
+  updateAvatar,
   getCurrentUser,
 };

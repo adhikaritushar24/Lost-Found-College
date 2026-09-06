@@ -46,6 +46,19 @@ const itemService = {
     const res = await api.get("/items/claims/mine");
     return res.data;
   },
+
+  // Approve a claim on one of my items — marks the item as claimed and
+  // returns the claim populated with the claimer's contact email
+  approveClaim: async (claimId) => {
+    const res = await api.put(`/items/claims/${claimId}/approve`);
+    return res.data;
+  },
+
+  // Reject a claim on one of my items
+  rejectClaim: async (claimId) => {
+    const res = await api.put(`/items/claims/${claimId}/reject`);
+    return res.data;
+  },
 };
 
 export default itemService;
