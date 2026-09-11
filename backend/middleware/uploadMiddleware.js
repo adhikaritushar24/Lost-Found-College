@@ -1,15 +1,10 @@
 const multer = require("multer");
-const path = require("path");
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "../uploads"));
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
-});
+// Memory storage: the file stays in RAM as a buffer (req.file.buffer)
+// instead of being written to local disk. This buffer is then uploaded
+// to Cloudinary and also sent to the AI microservice, so we never need
+// to save it locally.
+const storage = multer.memoryStorage();
 
 const upload = multer({ storage });
 

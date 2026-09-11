@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import itemService from "../services/itemsService";
-
+import { getImageUrl } from "../utils/imageUrl";
 const API =
   import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000";
 
@@ -95,7 +95,7 @@ export default function MyItems() {
                   </span>
                   {item.image ? (
                     <img
-                      src={`${API}${item.image}`}
+                      src={getImageUrl(item.image)}
                       alt={item.title}
                       className="w-full h-36 object-contain bg-purple-50/40"
                     />

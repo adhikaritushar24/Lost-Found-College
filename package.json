@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "agenda": "^4.3.0",
+    "cloudinary": "^2.11.0",
+    "streamifier": "^0.1.1"
+  }
+}

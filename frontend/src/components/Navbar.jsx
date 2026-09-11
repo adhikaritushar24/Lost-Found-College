@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import itemService from "../services/itemsService";
+import notificationService from "../services/notificationService";
 import useAuth from "../hooks/useAuth";
+import { getImageUrl } from "../utils/imageUrl";
 
 const API =
   import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000";
@@ -58,7 +60,8 @@ export default function Navbar() {
   const bellRef = useRef(null);
   const profileRef = useRef(null);
 
-  const loadMatches = async () => {
+  // Keyword-based matches (title word overlap between my lost items and found items)
+  const loadKeywordMatches = async () => {
     try {
       const [myItems, foundItems] = await Promise.all([
         itemService.getMyItems(),
@@ -66,10 +69,7 @@ export default function Navbar() {
       ]);
 
       const myLostItems = myItems.filter((i) => i.status === "lost");
-      if (myLostItems.length === 0) {
-        setMatches([]);
-        return;
-      }
+      if (myLostItems.length === 0) return [];
 
       const found = [];
       const seen = new Set();
@@ -83,18 +83,72 @@ export default function Navbar() {
           if ((sameCategory && sameTitleWords) || sameTitleWords) {
             if (!seen.has(foundItem._id)) {
               seen.add(foundItem._id);
-              found.push({ ...foundItem, matchedLostTitle: lostItem.title });
+              found.push({
+                refId: foundItem._id,
+                _id: foundItem._id,
+                title: foundItem.title,
+                image: foundItem.image,
+                location: foundItem.location,
+                createdAt: foundItem.createdAt,
+                matchedLostTitle: lostItem.title,
+                score: null,
+              });
             }
             break;
           }
         }
       }
 
-      found.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      setMatches(found.slice(0, 8));
+      return found;
     } catch (err) {
-      console.error("Failed to load notifications", err);
+      console.error("Failed to load keyword matches", err);
+      return [];
     }
+  };
+
+  // AI image-similarity matches (from the reverse image search notifications)
+  const loadAIMatches = async () => {
+    try {
+      const notifications = await notificationService.getMyNotifications();
+      return notifications
+        .filter((n) => n.matchedItem && n.item)
+        .map((n) => ({
+          refId: n.matchedItem._id,
+          _id: n._id,
+          title: n.matchedItem.title,
+          image: n.matchedItem.image,
+          location: n.matchedItem.location,
+          createdAt: n.createdAt,
+          matchedLostTitle: n.item.title,
+          score: n.score,
+        }));
+    } catch (err) {
+      console.error("Failed to load AI matches", err);
+      return [];
+    }
+  };
+
+  const loadMatches = async () => {
+    const [keywordMatches, aiMatches] = await Promise.all([
+      loadKeywordMatches(),
+      loadAIMatches(),
+    ]);
+
+    // Merge, preferring the AI match (has a score) when both systems found
+    // the same found-item as a match for the same lost-item.
+    const byKey = new Map();
+    for (const m of keywordMatches) {
+      byKey.set(m.refId, m);
+    }
+    for (const m of aiMatches) {
+      byKey.set(m.refId, m); // AI overwrites keyword-only entry
+    }
+
+    const merged = Array.from(byKey.values()).sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+    );
+
+    setMatches(merged.slice(0, 8));
   };
 
   // Claims made by other people on items I reported — pending ones need my
@@ -326,7 +380,7 @@ export default function Navbar() {
                               <div className="relative shrink-0">
                                 {claim.item?.image ? (
                                   <img
-                                    src={`${API}${claim.item.image}`}
+                                    src={getImageUrl(claim.item.image)}
                                     alt={claim.item.title}
                                     className="w-10 h-10 rounded-xl object-cover bg-gray-100 ring-1 ring-black/5"
                                   />
@@ -449,7 +503,7 @@ export default function Navbar() {
                         >
                           {item.image ? (
                             <img
-                              src={`${API}${item.image}`}
+                              src={getImageUrl(item.image)}
                               alt={item.title}
                               className="w-10 h-10 rounded-xl object-cover bg-gray-100 shrink-0 ring-1 ring-black/5"
                             />
@@ -461,9 +515,16 @@ export default function Navbar() {
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-blue-600">
-                              Match for "{item.matchedLostTitle}"
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-medium text-blue-600 truncate">
+                                Match for "{item.matchedLostTitle}"
+                              </p>
+                              {typeof item.score === "number" && (
+                                <span className="shrink-0 text-[9px] font-bold text-white bg-gradient-to-r from-purple-500 to-fuchsia-500 px-1.5 py-0.5 rounded-full">
+                                  {Math.round(item.score * 100)}% match
+                                </span>
+                              )}
+                            </div>
                             <p className="text-sm text-gray-900 truncate mt-0.5">
                               Found: {item.title}
                             </p>

@@ -5,6 +5,11 @@
 
 # Dependencies
 node_modules/
+ai-service/venv/
+
+# Python
+__pycache__/
+*.pyc
 
 # Build
 dist/

@@ -1,5 +1,9 @@
+const streamifier = require("streamifier");
+
 const Item = require("../models/Item");
 const Claim = require("../models/Claim");
+const cloudinary = require("../config/cloudinary");
+const agenda = require("../jobs/aiMatchingJob");
 
 // @desc    Get items, optionally filtered by status. When status=claimed,
 //          each item is also annotated with claimedByUser (who claimed it).
@@ -53,19 +57,47 @@ const getMyItems = async (req, res, next) => {
   }
 };
 
+// Uploads an image buffer to Cloudinary and resolves with the secure URL.
+const uploadToCloudinary = (buffer) => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { folder: "lost-and-found" },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result.secure_url);
+      }
+    );
+    streamifier.createReadStream(buffer).pipe(uploadStream);
+  });
+};
+
 const createItem = async (req, res, next) => {
   try {
     const { title, description, location, status, category } = req.body;
+
+    let imageUrl = "";
+    if (req.file) {
+      imageUrl = await uploadToCloudinary(req.file.buffer);
+    }
+
     const item = await Item.create({
       title,
       description,
       location,
       category: category || "Other",
       status: status || "found",
-      image: req.file ? `/uploads/${req.file.filename}` : "",
+      image: imageUrl,
       reportedBy: req.user._id,
     });
+
     res.status(201).json(item);
+
+    // Queue AI matching as a background job instead of running it inline.
+    // agenda persists this in MongoDB, so it survives server restarts and
+    // retries automatically if the AI service is temporarily down.
+    if (imageUrl) {
+      agenda.now("ai-matching", { itemId: item._id.toString() });
+    }
   } catch (err) {
     next(err);
   }

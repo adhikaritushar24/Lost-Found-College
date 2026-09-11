@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import itemService from "../../services/itemsService";
 import useAuth from "../../hooks/useAuth";
+import { getImageUrl } from "../../utils/imageUrl";
 
 const API =
   import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000";
@@ -636,7 +637,7 @@ export default function Home() {
                   </span>
                   {item.image ? (
                     <img
-                      src={`${API}${item.image}`}
+                      src={getImageUrl(item.image)}
                       alt={item.title}
                       className="w-full h-40 object-contain bg-gradient-to-br from-purple-50/60 to-fuchsia-50/40 group-hover:scale-[1.03] transition-transform duration-300"
                     />
@@ -725,7 +726,7 @@ export default function Home() {
           >
             {selectedItem.image ? (
               <img
-                src={`${API}${selectedItem.image}`}
+                src={getImageUrl(selectedItem.image)}
                 alt={selectedItem.title}
                 className="w-full h-56 object-contain bg-gray-100"
               />
